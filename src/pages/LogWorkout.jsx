@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useState } from 'react'
 import { DAYS_OF_WEEK } from '../types'
+import ExerciseCard from '../components/ExerciseCard'
 
 function LogWorkout() {
   const { day } = useParams()
@@ -10,6 +11,7 @@ function LogWorkout() {
 
   return (
     <div>
+      <ExerciseCard />
       <select
         value={selectedDay}
         onChange={(e) => setSelectedDay(e.target.value)}
