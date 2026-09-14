@@ -1,5 +1,6 @@
-import { createContext, useContext, useReducer } from 'react'
+import { createContext, useContext, useReducer, useEffect } from 'react'
 import { EMPTY_WORKOUT_DATA } from '../types'
+import { loadData, saveData } from '../storage'
 
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
@@ -18,9 +19,6 @@ const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutC
  * @property {import('../types').WorkoutData} state
  * @property {React.Dispatch<WorkoutAction>} dispatch
  */
-
-/** @type {import('../types').WorkoutData} */
-const initialState = EMPTY_WORKOUT_DATA
 
 /**
  * @param {import('../types').WorkoutData} state
@@ -65,7 +63,11 @@ function workoutReducer(state, action) {
  * @param {{ children: React.ReactNode }} props
  */
 export function WorkoutProvider({ children }) {
-  const [state, dispatch] = useReducer(workoutReducer, initialState)
+  const [state, dispatch] = useReducer(workoutReducer, EMPTY_WORKOUT_DATA, loadData)
+
+  useEffect(() => {
+    saveData(state)
+  }, [state])
 
   return (
     <WorkoutContext.Provider value={{ state, dispatch }}>
