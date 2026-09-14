@@ -1,6 +1,16 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { loadGIS, loadGapi, loadGoogleScripts } from '../googleDrive'
+import {
+  loadGIS,
+  loadGapi,
+  loadGoogleScripts,
+  signIn,
+  signOut,
+  getAccessToken,
+  isSignedIn,
+  resetAuth,
+  initTokenClient,
+} from '../googleDrive'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
 const GAPI_URL = 'https://apis.google.com/js/api.js'
@@ -10,6 +20,8 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 beforeEach(() => {
   document.head.innerHTML = ''
   delete window.gapi
+  delete window.google
+  resetAuth()
 })
 
 afterEach(() => {
@@ -114,5 +126,150 @@ describe('loadGoogleScripts', () => {
     await flush()
     gapiLoadCallback()
     await promise
+  })
+})
+
+describe('signIn', () => {
+  function setupGoogleMock() {
+    let capturedCallback
+    const requestAccessToken = vi.fn()
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn((opts) => {
+            capturedCallback = opts.callback
+            return { requestAccessToken, callback: null }
+          }),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    return { requestAccessToken, getCb: () => capturedCallback }
+  }
+
+  it('rejects when GIS is not loaded', async () => {
+    await expect(signIn('client-id')).rejects.toThrow('Google Identity Services not loaded')
+  })
+
+  it('creates token client and requests access token', async () => {
+    const { requestAccessToken } = setupGoogleMock()
+    const promise = signIn('client-id')
+    expect(window.google.accounts.oauth2.initTokenClient).toHaveBeenCalledWith({
+      client_id: 'client-id',
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: expect.any(Function),
+    })
+    expect(requestAccessToken).toHaveBeenCalledWith({ prompt: '' })
+
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'tok-123', error: undefined })
+    const token = await promise
+    expect(token).toBe('tok-123')
+    expect(getAccessToken()).toBe('tok-123')
+    expect(isSignedIn()).toBe(true)
+  })
+
+  it('rejects when callback reports an error', async () => {
+    setupGoogleMock()
+    const promise = signIn('client-id')
+
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ error: 'access_denied' })
+    await expect(promise).rejects.toThrow('access_denied')
+  })
+
+  it('reuses existing token client on second call', async () => {
+    setupGoogleMock()
+    const p1 = signIn('client-id')
+    const cb1 = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb1({ access_token: 'tok-1' })
+    await p1
+
+    const p2 = signIn('client-id')
+    expect(window.google.accounts.oauth2.initTokenClient).toHaveBeenCalledTimes(1)
+    const cb2 = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb2({ access_token: 'tok-2' })
+    await p2
+    expect(getAccessToken()).toBe('tok-2')
+  })
+})
+
+describe('signOut', () => {
+  it('clears access token', async () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'tok-abc' })
+    await p
+
+    expect(isSignedIn()).toBe(true)
+    await signOut()
+    expect(getAccessToken()).toBeNull()
+    expect(isSignedIn()).toBe(false)
+  })
+
+  it('revokes the token via Google API', async () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'tok-revoke-me' })
+    await p
+
+    await signOut()
+    expect(window.google.accounts.oauth2.revoke).toHaveBeenCalledWith('tok-revoke-me')
+  })
+
+  it('does not throw when not signed in', async () => {
+    await expect(signOut()).resolves.toBeUndefined()
+  })
+})
+
+describe('getAccessToken / isSignedIn', () => {
+  it('returns null and false initially', () => {
+    expect(getAccessToken()).toBeNull()
+    expect(isSignedIn()).toBe(false)
+  })
+})
+
+describe('initTokenClient', () => {
+  it('throws when GIS is not loaded', () => {
+    expect(() => initTokenClient('cid')).toThrow('Google Identity Services not loaded')
+  })
+
+  it('returns token client instance', () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({ requestAccessToken: vi.fn() })),
+        },
+      },
+    }
+    const client = initTokenClient('cid')
+    expect(client).toBeDefined()
+    expect(window.google.accounts.oauth2.initTokenClient).toHaveBeenCalledWith({
+      client_id: 'cid',
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: expect.any(Function),
+    })
   })
 })

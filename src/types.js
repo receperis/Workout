@@ -28,6 +28,12 @@
  * @typedef {'Monday'|'Tuesday'|'Wednesday'|'Thursday'|'Friday'|'Saturday'|'Sunday'} DayOfWeek
  */
 
+/**
+ * @typedef {Object} AuthState
+ * @property {boolean} signedIn - Whether the user is signed in
+ * @property {string|null} accessToken - Google OAuth access token
+ */
+
 export const PYRAMID_REPS = /** @type {const} */ ([15, 13, 11, 9, 7])
 
 export const DAYS_OF_WEEK = /** @type {const} */ ([
