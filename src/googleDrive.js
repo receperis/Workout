@@ -161,6 +161,31 @@ export async function loadFromDrive(fileId) {
   }
 }
 
+export async function saveToDrive(fileId, data) {
+  const token = currentAccessToken
+  if (!token) throw new Error('Not signed in')
+
+  const content = JSON.stringify(data)
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': MIME_TYPE_JSON,
+      },
+      body: content,
+    },
+  )
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error?.message || `Drive API error ${res.status}`)
+  }
+
+  return res.json()
+}
+
 async function findFolder(name) {
   const q = `name='${name}' and mimeType='${MIME_TYPE_FOLDER}' and trashed=false`
   const data = await driveFetch(`/files?q=${encodeURIComponent(q)}&fields=files(id)`)

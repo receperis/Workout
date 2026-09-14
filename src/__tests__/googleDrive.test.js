@@ -12,6 +12,7 @@ import {
   initTokenClient,
   findOrCreateFile,
   loadFromDrive,
+  saveToDrive,
 } from '../googleDrive'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
@@ -490,5 +491,90 @@ describe('loadFromDrive', () => {
     )
 
     await expect(loadFromDrive('file-1')).rejects.toThrow('file not found')
+  })
+})
+
+describe('saveToDrive', () => {
+  async function signInWithToken() {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'test-token' })
+    await p
+  }
+
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws when not signed in', async () => {
+    await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow('Not signed in')
+  })
+
+  it('serializes and uploads JSON data', async () => {
+    await signInWithToken()
+    const data = {
+      exercises: ['Bench Press', 'Squat'],
+      schedule: { Monday: ['Bench Press'] },
+      sessions: [],
+    }
+    let capturedUrl, capturedOpts
+    mockFetch((url, opts) => {
+      capturedUrl = url
+      capturedOpts = opts
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'file-1' }) })
+    })
+
+    await saveToDrive('file-1', data)
+
+    expect(capturedUrl).toContain('upload/drive/v3/files/file-1?uploadType=media')
+    expect(capturedOpts.method).toBe('PATCH')
+    expect(capturedOpts.headers['Content-Type']).toBe('application/json')
+    expect(capturedOpts.headers['Authorization']).toBe('Bearer test-token')
+    expect(capturedOpts.body).toBe(JSON.stringify(data))
+  })
+
+  it('throws on Drive API errors', async () => {
+    await signInWithToken()
+    mockFetch(() =>
+      Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ error: { message: 'storage quota exceeded' } }),
+      }),
+    )
+
+    await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow(
+      'storage quota exceeded',
+    )
+  })
+
+  it('throws generic error when response body has no error message', async () => {
+    await signInWithToken()
+    mockFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({}),
+      }),
+    )
+
+    await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow(
+      'Drive API error 400',
+    )
   })
 })
