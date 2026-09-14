@@ -1,4 +1,4 @@
-import { EMPTY_WORKOUT_DATA } from './types'
+import { EMPTY_WORKOUT_DATA, isWorkoutData } from './types'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
 const GAPI_URL = 'https://apis.google.com/js/api.js'
@@ -134,6 +134,31 @@ export async function findOrCreateFile() {
   }
 
   return { folderId, fileId }
+}
+
+export async function loadFromDrive(fileId) {
+  const token = currentAccessToken
+  if (!token) throw new Error('Not signed in')
+
+  const url = `${DRIVE_API}/files/${fileId}?alt=media`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error?.message || `Drive API error ${res.status}`)
+  }
+
+  const text = await res.text()
+
+  try {
+    const parsed = JSON.parse(text)
+    if (!isWorkoutData(parsed)) return EMPTY_WORKOUT_DATA
+    return parsed
+  } catch {
+    return EMPTY_WORKOUT_DATA
+  }
 }
 
 async function findFolder(name) {

@@ -11,6 +11,7 @@ import {
   resetAuth,
   initTokenClient,
   findOrCreateFile,
+  loadFromDrive,
 } from '../googleDrive'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
@@ -390,5 +391,104 @@ describe('findOrCreateFile', () => {
     )
 
     await expect(findOrCreateFile()).rejects.toThrow('quota exceeded')
+  })
+})
+
+describe('loadFromDrive', () => {
+  async function signInWithToken() {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'test-token' })
+    await p
+  }
+
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws when not signed in', async () => {
+    await expect(loadFromDrive('file-1')).rejects.toThrow('Not signed in')
+  })
+
+  it('loads and parses valid workout data', async () => {
+    await signInWithToken()
+    const validData = {
+      exercises: ['Bench Press'],
+      schedule: { Monday: ['Bench Press'] },
+      sessions: [],
+    }
+    mockFetch((url) => {
+      if (url.includes('alt=media')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify(validData)),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await loadFromDrive('file-1')
+    expect(result).toEqual(validData)
+  })
+
+  it('returns EMPTY_WORKOUT_DATA when JSON is invalid', async () => {
+    await signInWithToken()
+    mockFetch((url) => {
+      if (url.includes('alt=media')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve('not valid json{{{'),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await loadFromDrive('file-1')
+    expect(result).toEqual({ exercises: [], schedule: {}, sessions: [] })
+  })
+
+  it('returns EMPTY_WORKOUT_DATA when data fails validation', async () => {
+    await signInWithToken()
+    const invalidData = { exercises: 'not an array', schedule: {}, sessions: [] }
+    mockFetch((url) => {
+      if (url.includes('alt=media')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify(invalidData)),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await loadFromDrive('file-1')
+    expect(result).toEqual({ exercises: [], schedule: {}, sessions: [] })
+  })
+
+  it('throws on Drive API errors', async () => {
+    await signInWithToken()
+    mockFetch(() =>
+      Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ error: { message: 'file not found' } }),
+      }),
+    )
+
+    await expect(loadFromDrive('file-1')).rejects.toThrow('file not found')
   })
 })
