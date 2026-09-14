@@ -3,10 +3,11 @@ import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
 
 function Settings() {
-  const { state, dispatch } = useWorkout()
+  const { state, dispatch, signedIn, signIn, signOut, syncStatus } = useWorkout()
   const [newExercise, setNewExercise] = useState('')
   const [editingIndex, setEditingIndex] = useState(-1)
   const [editValue, setEditValue] = useState('')
+  const [clientId, setClientId] = useState(() => localStorage.getItem('google-drive-client-id') || '')
 
   function handleAdd(e) {
     e.preventDefault()
@@ -147,6 +148,45 @@ function Settings() {
               </div>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold mb-2">Google Drive</h2>
+        {signedIn ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => signOut()}
+              className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            >
+              Disconnect Google Drive
+            </button>
+            <span className="text-sm text-gray-600">Connected</span>
+            <span
+              className="text-sm font-medium"
+              style={syncStatus === 'syncing' ? { color: 'green' } : {}}
+              data-testid="syncStatus"
+            >
+              {syncStatus}
+            </span>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="Google Client ID"
+              aria-label="Google Client ID"
+              className="border rounded px-2 py-1 text-sm w-32"
+            />
+            <button
+              onClick={() => signIn(clientId || '')}
+              className="bg-green-500 text-white px-4 py-1 rounded text-sm ml-1"
+            >
+              Connect Google Drive
+            </button>
+          </>
         )}
       </section>
     </div>

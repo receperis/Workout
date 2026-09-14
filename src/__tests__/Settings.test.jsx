@@ -1,9 +1,26 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, screen, cleanup, act, fireEvent, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import Settings from '../pages/Settings'
 import { WorkoutProvider } from '../context/WorkoutContext'
+import { EMPTY_WORKOUT_DATA } from '../types'
+
+const mockSignIn = vi.fn()
+const mockSignOut = vi.fn()
+const mockFindOrCreateFile = vi.fn()
+const mockLoadFromDrive = vi.fn()
+const mockSaveToDrive = vi.fn()
+let mockSignedIn = false
+
+vi.mock('../googleDrive', () => ({
+  isSignedIn: () => mockSignedIn,
+  signIn: (...args) => mockSignIn(...args),
+  signOut: (...args) => mockSignOut(...args),
+  findOrCreateFile: (...args) => mockFindOrCreateFile(...args),
+  loadFromDrive: (...args) => mockLoadFromDrive(...args),
+  saveToDrive: (...args) => mockSaveToDrive(...args),
+}))
 
 afterEach(() => {
   cleanup()
@@ -11,6 +28,13 @@ afterEach(() => {
 
 beforeEach(() => {
   localStorage.clear()
+  mockSignedIn = false
+  mockSignIn.mockReset()
+  mockSignOut.mockReset()
+  mockFindOrCreateFile.mockReset()
+  mockLoadFromDrive.mockReset()
+  mockSaveToDrive.mockReset()
+  mockSaveToDrive.mockResolvedValue({})
 })
 
 function renderSettings() {
@@ -179,5 +203,39 @@ describe('Settings - Schedule Editor', () => {
       screen.getByText('Remove').click()
     })
     expect(screen.getByText('Add exercises first to set a schedule.')).toBeInTheDocument()
+  })
+})
+
+describe('Google Drive connection', () => {
+  it('shows Connect Google Drive button when not signed in', () => {
+    renderSettings()
+    expect(screen.getByText('Connect Google Drive')).toBeInTheDocument()
+    expect(screen.queryByText('Disconnect')).not.toBeInTheDocument()
+  })
+
+  it('shows connected status and Disconnect button when signed in', () => {
+    mockSignedIn = true
+    renderSettings()
+    expect(screen.getByText('Disconnect Google Drive')).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.queryByText('Connect Google Drive')).not.toBeInTheDocument()
+  })
+
+  it('shows sync status when connected', () => {
+    mockSignedIn = true
+    mockFindOrCreateFile.mockResolvedValue({ folderId: 'f1', fileId: 'file1' })
+    mockLoadFromDrive.mockResolvedValue(EMPTY_WORKOUT_DATA)
+
+    renderSettings()
+
+    expect(screen.getByTestId('syncStatus')).toHaveTextContent('idle')
+  })
+
+  it('allows entering Google Client ID', () => {
+    renderSettings()
+    const clientIdInput = screen.getByLabelText('Google Client ID')
+    expect(clientIdInput).toBeInTheDocument()
+    fireEvent.change(clientIdInput, { target: { value: 'test-client-123' } })
+    expect(screen.getByLabelText('Google Client ID')).toHaveValue('test-client-123')
   })
 })
