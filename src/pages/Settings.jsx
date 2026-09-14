@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
+import { DAYS_OF_WEEK } from '../types'
 
 function Settings() {
   const { state, dispatch } = useWorkout()
@@ -107,6 +108,46 @@ function Settings() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-2">Schedule</h2>
+        {state.exercises.length === 0 ? (
+          <p className="text-gray-500">Add exercises first to set a schedule.</p>
+        ) : (
+          <div className="space-y-4">
+            {DAYS_OF_WEEK.map((day) => (
+              <div key={day}>
+                <h3 className="font-medium mb-1">{day}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {state.exercises.map((exercise) => {
+                    const checked = (state.schedule[day] || []).includes(exercise)
+                    return (
+                      <label
+                        key={exercise}
+                        className="flex items-center gap-1 text-sm border rounded px-2 py-1 cursor-pointer select-none"
+                        style={checked ? { backgroundColor: '#dbeafe', borderColor: '#93c5fd' } : {}}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const current = state.schedule[day] || []
+                            const next = checked
+                              ? current.filter((e) => e !== exercise)
+                              : [...current, exercise]
+                            dispatch({ type: 'SET_SCHEDULE', payload: { ...state.schedule, [day]: next } })
+                          }}
+                        />
+                        {exercise}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )
