@@ -63,7 +63,7 @@ export function isWorkoutSet(value) {
     typeof obj.exercise === 'string' &&
     PYRAMID_REPS.includes(/** @type {PyramidRep} */ (obj.reps)) &&
     typeof obj.weight === 'number' &&
-    obj.weight >= 0
+    obj.weight > 0
   )
 }
 

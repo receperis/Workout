@@ -61,7 +61,7 @@ describe('isWorkoutSet', () => {
 
   it('returns false for zero weight', () => {
     expect(isWorkoutSet({ exercise: 'Squat', reps: 15, weight: 0 })).toBe(
-      true,
+      false,
     )
   })
 
