@@ -13,7 +13,7 @@ import {
 const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutContextValue | null>} */ (null))
 
 /**
- * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'LOG_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA'} WorkoutActionType
+ * @typedef {'ADD_EXERCISE' | 'REMOVE_EXERCISE' | 'RENAME_EXERCISE' | 'LOG_SESSION' | 'SET_SCHEDULE' | 'LOAD_DATA'} WorkoutActionType
  */
 
 /**
@@ -77,6 +77,20 @@ function workoutReducer(state, action) {
         ...state,
         exercises: state.exercises.filter((e) => e !== action.payload),
       }
+
+    case 'RENAME_EXERCISE': {
+      const { oldName, newName } = action.payload
+      return {
+        ...state,
+        exercises: state.exercises.map((e) => (e === oldName ? newName : e)),
+        schedule: Object.fromEntries(
+          Object.entries(state.schedule).map(([day, exercises]) => [
+            day,
+            exercises.map((e) => (e === oldName ? newName : e)),
+          ]),
+        ),
+      }
+    }
 
     case 'LOG_SESSION':
       return {

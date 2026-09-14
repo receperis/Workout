@@ -4,6 +4,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
+import { WorkoutProvider } from '../context/WorkoutContext'
 
 afterEach(() => {
   cleanup()
@@ -12,8 +13,10 @@ afterEach(() => {
 function renderWithRouter(initialRoute = '/') {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
-      <App />
-    </MemoryRouter>
+      <WorkoutProvider>
+        <App />
+      </WorkoutProvider>
+    </MemoryRouter>,
   )
 }
 

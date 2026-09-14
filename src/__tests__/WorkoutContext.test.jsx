@@ -23,6 +23,13 @@ function TestComponent() {
       </button>
       <button
         onClick={() =>
+          dispatch({ type: 'RENAME_EXERCISE', payload: { oldName: 'Bench Press', newName: 'Chest Press' } })
+        }
+      >
+        Rename Exercise
+      </button>
+      <button
+        onClick={() =>
           dispatch({
             type: 'LOG_SESSION',
             payload: {
@@ -97,6 +104,17 @@ describe('WorkoutContext', () => {
       screen.getByText('Remove Exercise').click()
     })
     expect(screen.getByTestId('exercises')).toHaveTextContent('[]')
+  })
+
+  it('handles RENAME_EXERCISE', () => {
+    renderWithProvider()
+    act(() => {
+      screen.getByText('Add Exercise').click()
+    })
+    act(() => {
+      screen.getByText('Rename Exercise').click()
+    })
+    expect(screen.getByTestId('exercises')).toHaveTextContent('["Chest Press"]')
   })
 
   it('handles LOG_SESSION', () => {
