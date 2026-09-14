@@ -1,5 +1,12 @@
+import { EMPTY_WORKOUT_DATA } from './types'
+
 const GIS_URL = 'https://accounts.google.com/gsi/client'
 const GAPI_URL = 'https://apis.google.com/js/api.js'
+const FOLDER_NAME = 'WorkoutTracker'
+const FILE_NAME = 'workout-data.json'
+const MIME_TYPE_FOLDER = 'application/vnd.google-apps.folder'
+const MIME_TYPE_JSON = 'application/json'
+const DRIVE_API = 'https://www.googleapis.com/drive/v3'
 
 let currentAccessToken = null
 let tokenClient = null
@@ -99,4 +106,77 @@ export function isSignedIn() {
 export function resetAuth() {
   currentAccessToken = null
   tokenClient = null
+}
+
+function driveFetch(path, options = {}) {
+  const token = currentAccessToken
+  if (!token) throw new Error('Not signed in')
+  const url = `${DRIVE_API}${path}`
+  const headers = { Authorization: `Bearer ${token}`, ...options.headers }
+  return fetch(url, { ...options, headers }).then(async (res) => {
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error?.message || `Drive API error ${res.status}`)
+    }
+    return res.json()
+  })
+}
+
+export async function findOrCreateFile() {
+  let folderId = await findFolder(FOLDER_NAME)
+  if (!folderId) {
+    folderId = await createFolder(FOLDER_NAME)
+  }
+
+  let fileId = await findFile(FILE_NAME, folderId)
+  if (!fileId) {
+    fileId = await createFile(FILE_NAME, folderId, JSON.stringify(EMPTY_WORKOUT_DATA))
+  }
+
+  return { folderId, fileId }
+}
+
+async function findFolder(name) {
+  const q = `name='${name}' and mimeType='${MIME_TYPE_FOLDER}' and trashed=false`
+  const data = await driveFetch(`/files?q=${encodeURIComponent(q)}&fields=files(id)`)
+  return data.files.length > 0 ? data.files[0].id : null
+}
+
+async function createFolder(name) {
+  const data = await driveFetch('/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: MIME_TYPE_FOLDER }),
+  })
+  return data.id
+}
+
+async function findFile(name, folderId) {
+  const q = `name='${name}' and '${folderId}' in parents and trashed=false`
+  const data = await driveFetch(`/files?q=${encodeURIComponent(q)}&fields=files(id)`)
+  return data.files.length > 0 ? data.files[0].id : null
+}
+
+async function createFile(name, folderId, content) {
+  const metadata = { name, parents: [folderId] }
+  const form = new FormData()
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
+  form.append('file', new Blob([content], { type: MIME_TYPE_JSON }))
+
+  const token = currentAccessToken
+  if (!token) throw new Error('Not signed in')
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    },
+  )
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error?.message || `Drive API error ${res.status}`)
+  }
+  const data = await res.json()
+  return data.id
 }

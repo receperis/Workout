@@ -10,6 +10,7 @@ import {
   isSignedIn,
   resetAuth,
   initTokenClient,
+  findOrCreateFile,
 } from '../googleDrive'
 
 const GIS_URL = 'https://accounts.google.com/gsi/client'
@@ -271,5 +272,123 @@ describe('initTokenClient', () => {
       scope: 'https://www.googleapis.com/auth/drive.file',
       callback: expect.any(Function),
     })
+  })
+})
+
+describe('findOrCreateFile', () => {
+  async function signInWithToken() {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'test-token' })
+    await p
+  }
+
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws when not signed in', async () => {
+    await expect(findOrCreateFile()).rejects.toThrow('Not signed in')
+  })
+
+  it('returns existing folder and file IDs', async () => {
+    await signInWithToken()
+    mockFetch((url) => {
+      if (url.includes('WorkoutTracker')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [{ id: 'folder-1' }] }) })
+      }
+      if (url.includes('workout-data.json')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [{ id: 'file-1' }] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await findOrCreateFile()
+    expect(result).toEqual({ folderId: 'folder-1', fileId: 'file-1' })
+  })
+
+  it('creates folder when not found, finds existing file', async () => {
+    await signInWithToken()
+    mockFetch((url, opts) => {
+      if (url.includes('WorkoutTracker') && url.includes('/files?')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [] }) })
+      }
+      if (opts?.method === 'POST' && !url.includes('uploadType')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'new-folder' }) })
+      }
+      if (url.includes('workout-data.json')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [{ id: 'file-2' }] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await findOrCreateFile()
+    expect(result).toEqual({ folderId: 'new-folder', fileId: 'file-2' })
+  })
+
+  it('finds existing folder, creates file when not found', async () => {
+    await signInWithToken()
+    mockFetch((url) => {
+      if (url.includes('WorkoutTracker')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [{ id: 'folder-3' }] }) })
+      }
+      if (url.includes('workout-data.json')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [] }) })
+      }
+      if (url.includes('uploadType=multipart')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'new-file' }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await findOrCreateFile()
+    expect(result).toEqual({ folderId: 'folder-3', fileId: 'new-file' })
+  })
+
+  it('creates both folder and file when neither exists', async () => {
+    await signInWithToken()
+    mockFetch((url, opts) => {
+      if (url.includes('WorkoutTracker') && url.includes('/files?')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [] }) })
+      }
+      if (url.includes('workout-data.json')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ files: [] }) })
+      }
+      if (url.includes('uploadType=multipart')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'new-file-2' }) })
+      }
+      if (opts?.method === 'POST' && !url.includes('uploadType')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'new-folder-2' }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    const result = await findOrCreateFile()
+    expect(result).toEqual({ folderId: 'new-folder-2', fileId: 'new-file-2' })
+  })
+
+  it('throws on Drive API errors', async () => {
+    await signInWithToken()
+    mockFetch(() =>
+      Promise.resolve({ ok: false, json: () => Promise.resolve({ error: { message: 'quota exceeded' } }) }),
+    )
+
+    await expect(findOrCreateFile()).rejects.toThrow('quota exceeded')
   })
 })
