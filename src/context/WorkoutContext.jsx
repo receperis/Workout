@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useState } from 'react'
 import { EMPTY_WORKOUT_DATA } from '../types'
-import { loadData, saveData } from '../storage'
+import { loadData, saveData, savePendingSync, loadPendingSync, clearPendingSync } from '../storage'
 import {
   isSignedIn,
   signIn as driveSignIn,
@@ -34,6 +34,8 @@ const WorkoutContext = createContext(/** @type {import('react').Context<WorkoutC
  * @property {() => void} signOut
  * @property {SyncStatus} syncStatus
  * @property {boolean} signedIn
+ * @property {boolean} online
+ * @property {boolean} pendingSync
  */
 
 /**
@@ -106,8 +108,23 @@ export function WorkoutProvider({ children }) {
   const [syncStatus, setSyncStatus] = useState(/** @type {SyncStatus} */ ('idle'))
   const [signedIn, setSignedIn] = useState(() => isSignedIn())
   const skipSyncRef = useRef(false)
+  const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
+  const [pendingSync, setPendingSync] = useState(() => loadPendingSync())
 
   stateRef.current = state
+
+  const flushPendingSync = useCallback(async () => {
+    if (!isSignedIn() || !fileIdRef.current) return
+    setSyncStatus('syncing')
+    try {
+      await saveToDrive(fileIdRef.current, stateRef.current)
+      clearPendingSync()
+      setPendingSync(false)
+      setSyncStatus('idle')
+    } catch {
+      setSyncStatus('error')
+    }
+  }, [])
 
   useEffect(() => {
     saveData(state)
@@ -119,11 +136,46 @@ export function WorkoutProvider({ children }) {
       return
     }
     if (!isSignedIn() || !fileIdRef.current) return
+    if (!navigator.onLine) {
+      savePendingSync()
+      setPendingSync(true)
+      setSyncStatus('error')
+      return
+    }
     setSyncStatus('syncing')
     saveToDrive(fileIdRef.current, state)
-      .then(() => setSyncStatus('idle'))
-      .catch(() => setSyncStatus('error'))
+      .then(() => {
+        clearPendingSync()
+        setPendingSync(false)
+        setSyncStatus('idle')
+      })
+      .catch(() => {
+        savePendingSync()
+        setPendingSync(true)
+        setSyncStatus('error')
+      })
   }, [state])
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setOnline(true)
+      if (pendingSync) flushPendingSync()
+    }
+    const handleOffline = () => setOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [pendingSync, flushPendingSync])
+
+  useEffect(() => {
+    if (pendingSync && online && isSignedIn() && fileIdRef.current) {
+      flushPendingSync()
+    }
+  }, [])
 
   const signIn = useCallback(async (/** @type {string} */ clientId) => {
     await driveSignIn(clientId)
@@ -134,6 +186,8 @@ export function WorkoutProvider({ children }) {
     const merged = mergeData(stateRef.current, driveData)
     skipSyncRef.current = true
     dispatch({ type: 'LOAD_DATA', payload: merged })
+    clearPendingSync()
+    setPendingSync(false)
   }, [])
 
   const signOut = useCallback(() => {
@@ -141,11 +195,13 @@ export function WorkoutProvider({ children }) {
     fileIdRef.current = null
     setSignedIn(false)
     setSyncStatus('idle')
+    clearPendingSync()
+    setPendingSync(false)
   }, [])
 
   return (
     <WorkoutContext.Provider
-      value={{ state, dispatch, signIn, signOut, syncStatus, signedIn }}
+      value={{ state, dispatch, signIn, signOut, syncStatus, signedIn, online, pendingSync }}
     >
       {children}
     </WorkoutContext.Provider>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
-import { loadData, saveData } from '../storage'
+import { loadData, saveData, savePendingSync, loadPendingSync, clearPendingSync } from '../storage'
 import { EMPTY_WORKOUT_DATA } from '../types'
 
 beforeEach(() => {
@@ -109,5 +109,32 @@ describe('roundtrip', () => {
     }
     saveData(data)
     expect(loadData()).toEqual(data)
+  })
+})
+
+describe('savePendingSync', () => {
+  it('sets pending sync flag in localStorage', () => {
+    savePendingSync()
+    expect(localStorage.getItem('workout-pending-sync')).toBe('true')
+  })
+})
+
+describe('loadPendingSync', () => {
+  it('returns false when no pending sync', () => {
+    expect(loadPendingSync()).toBe(false)
+  })
+
+  it('returns true after savePendingSync', () => {
+    savePendingSync()
+    expect(loadPendingSync()).toBe(true)
+  })
+})
+
+describe('clearPendingSync', () => {
+  it('removes pending sync flag', () => {
+    savePendingSync()
+    expect(loadPendingSync()).toBe(true)
+    clearPendingSync()
+    expect(loadPendingSync()).toBe(false)
   })
 })
