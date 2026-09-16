@@ -577,4 +577,204 @@ describe('saveToDrive', () => {
       'Drive API error 400',
     )
   })
+
+describe('driveFetch 401 handling', () => {
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('clears token on 401 response', async () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    await signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'tok-123' })
+    await expect(getAccessToken()).resolves.toBe('tok-123')
+
+    mockFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({}),
+      }),
+    )
+
+    await expect(driveFetch('/files', {})).rejects.toThrow('Token expired')
+    expect(currentAccessToken).toBeNull()
+  })
+
+  it('clears tokenClient on 401 response', async () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    await signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'tok-123' })
+    await expect(getAccessToken()).resolves.toBe('tok-123')
+
+    mockFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({}),
+      }),
+    )
+
+    await expect(driveFetch('/files', {})).rejects.toThrow('Token expired')
+    expect(tokenClient).toBeNull()
+  })
+})
+
+describe('loadFromDrive 401 handling', () => {
+  async function signInWithToken() {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'test-token' })
+    await p
+  }
+
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('clears token on 401 response', async () => {
+    await signInWithToken()
+    mockFetch((url) => {
+      if (url.includes('alt=media')) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    await expect(loadFromDrive('file-1')).rejects.toThrow('Token expired')
+    expect(currentAccessToken).toBeNull()
+  })
+})
+
+describe('saveToDrive 401 handling', () => {
+  async function signInWithToken() {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    const p = signIn('client-id')
+    const cb = window.google.accounts.oauth2.initTokenClient.mock.results[0].value.callback
+    cb({ access_token: 'test-token' })
+    await p
+  }
+
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('clears token on 401 response', async () => {
+    await signInWithToken()
+    mockFetch((url, opts) => {
+      if (opts?.method === 'PATCH' && url.includes('uploadType=media')) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow(
+      'Token expired',
+    )
+    expect(currentAccessToken).toBeNull()
+  })
+})
+
+describe('network error handling', () => {
+  function mockFetch(handler) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => handler(url, opts)))
+  }
+
+  beforeEach(() => {
+    resetAuth()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws network error on fetch failure', async () => {
+    mockFetch(() => Promise.reject(new TypeError('Network error')))
+
+    await expect(driveFetch('/files', {})).rejects.toThrow('Network error')
+  })
+
+  it('throws network error on saveToDrive failure', async () => {
+    window.google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn(() => ({
+            requestAccessToken: vi.fn(),
+            callback: null,
+          })),
+          revoke: vi.fn(),
+        },
+      },
+    }
+    await signIn('client-id')
+
+    mockFetch(() => Promise.reject(new TypeError('Network error')))
+
+    await expect(saveToDrive('file-1', { exercises: [] })).rejects.toThrow(
+      'Network error',
+    )
+  })
 })

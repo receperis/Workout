@@ -1,104 +1,88 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup, act } from '@testing-library/react'
+import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { render, screen, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import Dashboard from '../pages/Dashboard'
-import { WorkoutProvider, useWorkout } from '../context/WorkoutContext'
+import { WorkoutProvider } from '../context/WorkoutContext'
 
 afterEach(() => {
   cleanup()
+})
+
+beforeEach(() => {
   localStorage.clear()
 })
 
-function TestComponent() {
-  const { state, dispatch } = useWorkout()
-  return (
-    <div>
-      <Dashboard />
-      <button
-        onClick={() =>
-          dispatch({
-            type: 'ADD_EXERCISE',
-            payload: 'Bench Press',
-          })
-        }
-      >
-        Add Bench Press
-      </button>
-      <button
-        onClick={() =>
-          dispatch({
-            type: 'ADD_EXERCISE',
-            payload: 'Squat',
-          })
-        }
-      >
-        Add Squat
-      </button>
-      <button
-        onClick={() =>
-          dispatch({
-            type: 'LOG_SESSION',
-            payload: {
-              id: '1',
-              date: '2026-09-14',
-              day: 'Monday',
-              sets: [
-                { exercise: 'Bench Press', reps: 15, weight: 50 },
-                { exercise: 'Squat', reps: 15, weight: 80 },
-              ],
-            },
-          })
-        }
-      >
-        Log Session
-      </button>
-      <span data-testid="exercises">{JSON.stringify(state.exercises)}</span>
-      <span data-testid="sessions">{JSON.stringify(state.sessions)}</span>
-    </div>
-  )
-}
-
-function renderWithProvider() {
+function renderDashboard(data = { exercises: [], schedule: {}, sessions: [] }) {
+  localStorage.setItem('workout-data', JSON.stringify(data))
   return render(
     <WorkoutProvider>
-      <TestComponent />
-    </WorkoutProvider>,
+      <Dashboard />
+    </WorkoutProvider>
   )
 }
 
 describe('Dashboard', () => {
   it('renders Dashboard heading', () => {
-    renderWithProvider()
-    const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toHaveTextContent('Dashboard')
+    renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Dashboard')
   })
 
-  it('shows last weight per exercise when sessions exist', () => {
-    renderWithProvider()
-    act(() => {
-      screen.getByText('Add Bench Press').click()
-      screen.getByText('Add Squat').click()
-      screen.getByText('Log Session').click()
+  it('shows today day name', () => {
+    renderDashboard()
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+    const h2 = screen.getByRole('heading', { level: 2 })
+    expect(h2).toHaveTextContent(today)
+  })
+
+  it('shows empty state when no exercises scheduled for today', () => {
+    renderDashboard({
+      exercises: ['Bench Press'],
+      schedule: { Tuesday: ['Bench Press'] },
+      sessions: [],
     })
-    expect(screen.getByText('Bench Press: 50 kg')).toBeInTheDocument()
-    expect(screen.getByText('Squat: 80 kg')).toBeInTheDocument()
+    expect(screen.getByText(/No exercises scheduled for today/)).toBeInTheDocument()
   })
 
-  it('shows nothing when no sessions exist', () => {
-    renderWithProvider()
-    const summary = screen.queryByText('Last weight per exercise')
-    expect(summary).not.toBeInTheDocument()
-  })
-
-  it('shows last weight per exercise from most recent session', () => {
-    renderWithProvider()
-    act(() => {
-      screen.getByText('Add Bench Press').click()
-      screen.getByText('Add Squat').click()
-      screen.getByText('Log Session').click()
+  it('shows exercise names for today', () => {
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+    renderDashboard({
+      exercises: ['Bench Press', 'Squats'],
+      schedule: { [today]: ['Bench Press', 'Squats'] },
+      sessions: [],
     })
-    expect(screen.getByText('Bench Press: 50 kg')).toBeInTheDocument()
-    expect(screen.getByText('Squat: 80 kg')).toBeInTheDocument()
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('Squats')).toBeInTheDocument()
+  })
+
+  it('shows no session data message when no sessions', () => {
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+    renderDashboard({
+      exercises: ['Bench Press'],
+      schedule: { [today]: ['Bench Press'] },
+      sessions: [],
+    })
+    expect(screen.getByText(/No session data yet for Bench Press/)).toBeInTheDocument()
+  })
+
+  it('renders chart when session data exists', () => {
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' })
+    renderDashboard({
+      exercises: ['Bench Press'],
+      schedule: { [today]: ['Bench Press'] },
+      sessions: [
+        {
+          id: '1',
+          date: '2026-09-10',
+          day: today,
+          sets: [
+            { exercise: 'Bench Press', reps: 15, weight: 50 },
+            { exercise: 'Bench Press', reps: 13, weight: 55 },
+          ],
+        },
+      ],
+    })
+    expect(screen.queryByText(/No session data yet/)).not.toBeInTheDocument()
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
   })
 })

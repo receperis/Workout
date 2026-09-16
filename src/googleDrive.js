@@ -35,7 +35,7 @@ export function loadGapi() {
     loadScript(GAPI_URL)
       .then(() => {
         if (window.gapi) {
-          window.gapi.load('client:picker', { onerror: reject, ontimeout: reject, callback: resolve })
+          window.gapi.load('client:picker', { onerror: reject, callback: resolve })
         } else {
           reject(new Error('gapi not available after script load'))
         }
@@ -116,7 +116,13 @@ function driveFetch(path, options = {}) {
   return fetch(url, { ...options, headers }).then(async (res) => {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      throw new Error(body.error?.message || `Drive API error ${res.status}`)
+      const errMsg = body.error?.message || `Drive API error ${res.status}`
+      if (res.status === 401) {
+        currentAccessToken = null
+        tokenClient = null
+        throw new Error('Token expired')
+      }
+      throw new Error(errMsg)
     }
     return res.json()
   })
@@ -147,7 +153,13 @@ export async function loadFromDrive(fileId) {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.error?.message || `Drive API error ${res.status}`)
+    const errMsg = body.error?.message || `Drive API error ${res.status}`
+    if (res.status === 401) {
+      currentAccessToken = null
+      tokenClient = null
+      throw new Error('Token expired')
+    }
+    throw new Error(errMsg)
   }
 
   const text = await res.text()
@@ -180,7 +192,13 @@ export async function saveToDrive(fileId, data) {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.error?.message || `Drive API error ${res.status}`)
+    const errMsg = body.error?.message || `Drive API error ${res.status}`
+    if (res.status === 401) {
+      currentAccessToken = null
+      tokenClient = null
+      throw new Error('Token expired')
+    }
+    throw new Error(errMsg)
   }
 
   return res.json()

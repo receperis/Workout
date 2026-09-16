@@ -1,6 +1,32 @@
 import { useState } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
+import { generateSeedData } from '../data/seedData'
+
+function SectionCard({ title, children }) {
+  return (
+    <section
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow)',
+      }}
+    >
+      <div
+        className="px-5 py-3"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <h2 style={{ color: 'var(--text-heading)', fontSize: '17px', fontWeight: 600 }}>
+          {title}
+        </h2>
+      </div>
+      <div className="px-5 py-4">
+        {children}
+      </div>
+    </section>
+  )
+}
 
 function Settings() {
   const { state, dispatch, signedIn, signIn, signOut, syncStatus } = useWorkout()
@@ -8,6 +34,8 @@ function Settings() {
   const [editingIndex, setEditingIndex] = useState(-1)
   const [editValue, setEditValue] = useState('')
   const [clientId, setClientId] = useState(() => localStorage.getItem('google-drive-client-id') || '')
+  const [seedLoaded, setSeedLoaded] = useState(false)
+  const [expandedDay, setExpandedDay] = useState(null)
 
   function handleAdd(e) {
     e.preventDefault()
@@ -37,158 +65,272 @@ function Settings() {
     setEditingIndex(-1)
   }
 
+  function handleLoadSampleData() {
+    const data = generateSeedData()
+    dispatch({ type: 'LOAD_DATA', payload: data })
+    setSeedLoaded(true)
+  }
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Settings</h1>
+    <div className="space-y-4">
+      <h1 style={{ color: 'var(--text-heading)' }}>Settings</h1>
 
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">Exercises</h2>
-
+      <SectionCard title="Exercises">
         <form onSubmit={handleAdd} className="flex gap-2 mb-4">
           <input
             type="text"
             value={newExercise}
             onChange={(e) => setNewExercise(e.target.value)}
             placeholder="New exercise name"
-            className="border rounded px-3 py-1 flex-1"
+            className="flex-1 rounded-lg px-3 py-2.5 text-sm"
+            style={{
+              background: 'var(--surface-raised)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-heading)',
+            }}
           />
-          <button type="submit" className="bg-blue-500 text-white px-4 py-1 rounded">
+          <button
+            type="submit"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
             Add
           </button>
         </form>
 
-        <ul className="divide-y border rounded">
-          {state.exercises.length === 0 && (
-            <li className="px-3 py-2 text-gray-500">No exercises yet.</li>
-          )}
-          {state.exercises.map((name, index) => (
-            <li key={name} className="flex items-center gap-2 px-3 py-2">
-              {editingIndex === index ? (
-                <>
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleRename(index)
-                      if (e.key === 'Escape') setEditingIndex(-1)
-                    }}
-                    className="border rounded px-2 py-1 flex-1"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => handleRename(index)}
-                    className="text-green-600 text-sm"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingIndex(-1)}
-                    className="text-gray-500 text-sm"
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex-1">{name}</span>
-                  <button
-                    onClick={() => startRename(index)}
-                    className="text-blue-500 text-sm"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    onClick={() => handleRemove(name)}
-                    className="text-red-500 text-sm"
-                  >
-                    Remove
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-2">Schedule</h2>
         {state.exercises.length === 0 ? (
-          <p className="text-gray-500">Add exercises first to set a schedule.</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No exercises yet.</p>
         ) : (
-          <div className="space-y-4">
-            {DAYS_OF_WEEK.map((day) => (
-              <div key={day}>
-                <h3 className="font-medium mb-1">{day}</h3>
-                <div className="flex flex-wrap gap-2">
-                  {state.exercises.map((exercise) => {
-                    const checked = (state.schedule[day] || []).includes(exercise)
-                    return (
-                      <label
-                        key={exercise}
-                        className="flex items-center gap-1 text-sm border rounded px-2 py-1 cursor-pointer select-none"
-                        style={checked ? { backgroundColor: '#dbeafe', borderColor: '#93c5fd' } : {}}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const current = state.schedule[day] || []
-                            const next = checked
-                              ? current.filter((e) => e !== exercise)
-                              : [...current, exercise]
-                            dispatch({ type: 'SET_SCHEDULE', payload: { ...state.schedule, [day]: next } })
-                          }}
-                        />
-                        {exercise}
-                      </label>
-                    )
-                  })}
-                </div>
+          <div className="space-y-2">
+            {state.exercises.map((name, index) => (
+              <div
+                key={name}
+                className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+                style={{ background: 'var(--surface-raised)' }}
+              >
+                {editingIndex === index ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRename(index)
+                        if (e.key === 'Escape') setEditingIndex(-1)
+                      }}
+                      className="flex-1 rounded-lg px-3 py-2 text-sm"
+                      style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-heading)',
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleRename(index)}
+                      className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                      style={{ color: '#059669' }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingIndex(-1)}
+                      className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm" style={{ color: 'var(--text-heading)' }}>{name}</span>
+                    <button
+                      onClick={() => startRename(index)}
+                      className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => handleRemove(name)}
+                      className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                      style={{ color: '#ef4444' }}
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Google Drive</h2>
+      <SectionCard title="Schedule">
+        {state.exercises.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Add exercises first to set a schedule.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {DAYS_OF_WEEK.map((day) => {
+              const dayExercises = state.schedule[day] || []
+              const expanded = expandedDay === day
+              return (
+                <div
+                  key={day}
+                  className="rounded-lg overflow-hidden"
+                  style={{ border: '1px solid var(--border)' }}
+                >
+                  <button
+                    onClick={() => setExpandedDay(expanded ? null : day)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                    style={{ background: 'var(--surface-raised)' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>
+                        {day}
+                      </span>
+                      {dayExercises.length > 0 && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: 'var(--accent)', color: '#fff' }}
+                        >
+                          {dayExercises.length}
+                        </span>
+                      )}
+                    </div>
+                    <svg
+                      className="w-4 h-4 transition-transform"
+                      style={{
+                        color: 'var(--text-muted)',
+                        transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      }}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M7 10l5 5 5-5z" />
+                    </svg>
+                  </button>
+
+                  {expanded && (
+                    <div className="p-3 flex flex-wrap gap-2" style={{ background: 'var(--surface)' }}>
+                      {state.exercises.map((exercise) => {
+                        const checked = dayExercises.includes(exercise)
+                        return (
+                          <label
+                            key={exercise}
+                            className="flex items-center gap-1.5 text-sm rounded-lg px-3 py-2 cursor-pointer select-none transition-colors"
+                            style={{
+                              background: checked ? 'var(--accent)' + '15' : 'var(--surface-raised)',
+                              border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                              color: checked ? 'var(--accent)' : 'var(--text)',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const current = state.schedule[day] || []
+                                const next = checked
+                                  ? current.filter((e) => e !== exercise)
+                                  : [...current, exercise]
+                                dispatch({ type: 'SET_SCHEDULE', payload: { ...state.schedule, [day]: next } })
+                              }}
+                              className="sr-only"
+                            />
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center"
+                              style={{
+                                background: checked ? 'var(--accent)' : 'transparent',
+                                border: `2px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                              }}
+                            >
+                              {checked && (
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                                  <path d="M5 12l5 5L20 7" />
+                                </svg>
+                              )}
+                            </div>
+                            {exercise}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Sample Data">
+        <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
+          Load 2 weeks of sample workout data to see how charts and progress tracking work.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLoadSampleData}
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold"
+            style={{
+              background: 'var(--surface-raised)',
+              color: 'var(--text-heading)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            Load Sample Data
+          </button>
+          {seedLoaded && (
+            <span className="text-sm font-medium" style={{ color: '#059669' }}>Loaded!</span>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Google Drive">
         {signedIn ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => signOut()}
-              className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+              className="rounded-lg px-4 py-2.5 text-sm font-semibold"
+              style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}
             >
-              Disconnect Google Drive
+              Disconnect
             </button>
-            <span className="text-sm text-gray-600">Connected</span>
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Connected</span>
             <span
               className="text-sm font-medium"
-              style={syncStatus === 'syncing' ? { color: 'green' } : {}}
+              style={{ color: syncStatus === 'syncing' ? '#059669' : 'var(--text-muted)' }}
               data-testid="syncStatus"
             >
               {syncStatus}
             </span>
           </div>
         ) : (
-          <>
+          <div className="space-y-3">
             <input
               type="text"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               placeholder="Google Client ID"
               aria-label="Google Client ID"
-              className="border rounded px-2 py-1 text-sm w-32"
+              className="w-full rounded-lg px-3 py-2.5 text-sm"
+              style={{
+                background: 'var(--surface-raised)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-heading)',
+              }}
             />
             <button
               onClick={() => signIn(clientId || '')}
-              className="bg-green-500 text-white px-4 py-1 rounded text-sm ml-1"
+              className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
+              style={{ background: '#059669', color: '#fff' }}
             >
               Connect Google Drive
             </button>
-          </>
+          </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   )
 }

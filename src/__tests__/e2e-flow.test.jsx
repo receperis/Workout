@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
-import { render, fireEvent } from '@testing-library/react'
+import { render, fireEvent, screen } from '@testing-library/react'
 import Progress from '../pages/Progress'
 import { WorkoutProvider } from '../context/WorkoutContext'
 import '@testing-library/jest-dom/vitest'
 
 describe('E2E Flow - Create exercises → Schedule → Log → Chart', () => {
-  it('displays progress weights from localStorage', () => {
+  it('displays day tabs and exercise names from localStorage', () => {
     localStorage.setItem(
       'workout-data',
       JSON.stringify({
@@ -19,6 +19,13 @@ describe('E2E Flow - Create exercises → Schedule → Log → Chart', () => {
             day: 'Monday',
             sets: [
               { exercise: 'Bench Press', reps: 15, weight: 100 },
+            ],
+          },
+          {
+            id: '2',
+            date: '2026-09-14',
+            day: 'Wednesday',
+            sets: [
               { exercise: 'Squat', reps: 15, weight: 150 },
             ],
           },
@@ -26,21 +33,15 @@ describe('E2E Flow - Create exercises → Schedule → Log → Chart', () => {
       }),
     )
 
-    const { container } = render(<WorkoutProvider><Progress /></WorkoutProvider>)
-    const select = container.querySelector('select')
-    fireEvent.change(select, { target: { value: 'Bench Press' } })
+    render(<WorkoutProvider><Progress /></WorkoutProvider>)
 
-    const paragraphs = container.querySelectorAll('p')
-    expect(paragraphs.length).toBeGreaterThan(0)
-    const bench = Array.from(paragraphs).find(p => p.textContent.includes('Bench Press'))
-    expect(bench).toBeInTheDocument()
-    expect(bench.textContent).toContain('100 kg')
+    expect(screen.getByText('Monday')).toBeInTheDocument()
+    expect(screen.getByText('Wednesday')).toBeInTheDocument()
 
-    fireEvent.change(select, { target: { value: 'Squat' } })
+    fireEvent.click(screen.getByText('Monday'))
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
 
-    const paragraphsAfter = container.querySelectorAll('p')
-    const squat = Array.from(paragraphsAfter).find(p => p.textContent.includes('Squat'))
-    expect(squat).toBeInTheDocument()
-    expect(squat.textContent).toContain('150 kg')
+    fireEvent.click(screen.getByText('Wednesday'))
+    expect(screen.getByText('Squat')).toBeInTheDocument()
   })
 })

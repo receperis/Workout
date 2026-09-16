@@ -7,6 +7,7 @@ import {
   signOut as driveSignOut,
   findOrCreateFile,
   loadFromDrive,
+  loadGoogleScripts,
   saveToDrive,
 } from '../googleDrive'
 
@@ -135,8 +136,19 @@ export function WorkoutProvider({ children }) {
       clearPendingSync()
       setPendingSync(false)
       setSyncStatus('idle')
-    } catch {
-      setSyncStatus('error')
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e)
+      if (err === 'Token expired') {
+        driveSignOut()
+        fileIdRef.current = null
+        setSignedIn(false)
+        setSyncStatus('idle')
+        setPendingSync(false)
+      } else {
+        savePendingSync()
+        setPendingSync(true)
+        setSyncStatus('error')
+      }
     }
   }, [])
 
@@ -163,10 +175,19 @@ export function WorkoutProvider({ children }) {
         setPendingSync(false)
         setSyncStatus('idle')
       })
-      .catch(() => {
-        savePendingSync()
-        setPendingSync(true)
-        setSyncStatus('error')
+      .catch((e) => {
+        const err = e instanceof Error ? e.message : String(e)
+        if (err === 'Token expired') {
+          driveSignOut()
+          fileIdRef.current = null
+          setSignedIn(false)
+          setSyncStatus('idle')
+          setPendingSync(false)
+        } else {
+          savePendingSync()
+          setPendingSync(true)
+          setSyncStatus('error')
+        }
       })
   }, [state])
 
@@ -192,6 +213,7 @@ export function WorkoutProvider({ children }) {
   }, [])
 
   const signIn = useCallback(async (/** @type {string} */ clientId) => {
+    await loadGoogleScripts()
     await driveSignIn(clientId)
     setSignedIn(true)
     const { fileId } = await findOrCreateFile()

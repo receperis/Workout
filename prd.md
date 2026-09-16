@@ -243,19 +243,19 @@ WorkoutData
   - Depends on: all phases
   - Output: E2E validated
 
-- [ ] **9.2** Offline → reconnect sync test
+- [x] **9.2** Offline → reconnect sync test
   - Depends on: 3.7
   - Output: Offline works
 
-- [ ] **9.3** Drive auth edge cases (expired token, network error)
+- [x] **9.3** Drive auth edge cases (expired token, network error)
   - Depends on: 3.2
   - Output: Robust auth
 
-- [ ] **9.4** Lint pass (`npm run lint`)
+- [x] **9.4** Lint pass (`npm run lint`)
   - Depends on: all phases
   - Output: Clean code
 
-- [ ] **9.5** Build production (`npm run build`)
+- [x] **9.5** Build production (`npm run build`)
   - Depends on: all phases
   - Output: Deployable
 

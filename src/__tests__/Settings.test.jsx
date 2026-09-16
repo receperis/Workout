@@ -206,6 +206,23 @@ describe('Settings - Schedule Editor', () => {
   })
 })
 
+describe('Settings - Sample Data', () => {
+  it('renders Load Sample Data button', () => {
+    renderSettings()
+    expect(screen.getByText('Load Sample Data')).toBeInTheDocument()
+  })
+
+  it('loads sample data on click', () => {
+    renderSettings()
+    act(() => {
+      screen.getByText('Load Sample Data').click()
+    })
+    expect(screen.getByText('Sample data loaded!')).toBeInTheDocument()
+    expect(screen.getAllByText('Bench Press').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('Squats').length).toBeGreaterThan(1)
+  })
+})
+
 describe('Google Drive connection', () => {
   it('shows Connect Google Drive button when not signed in', () => {
     renderSettings()
