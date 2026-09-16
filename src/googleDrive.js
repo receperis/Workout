@@ -62,6 +62,11 @@ export function initTokenClient(clientId) {
 
 export function signIn(clientId) {
   return new Promise((resolve, reject) => {
+    if (!clientId) {
+      reject(new Error('Missing required parameter client_id'))
+      return
+    }
+
     if (!window.google?.accounts?.oauth2) {
       reject(new Error('Google Identity Services not loaded'))
       return

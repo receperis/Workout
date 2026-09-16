@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useWorkout } from '../context/WorkoutContext'
 import { DAYS_OF_WEEK } from '../types'
 import { generateSeedData } from '../data/seedData'
@@ -33,9 +33,17 @@ function Settings() {
   const [newExercise, setNewExercise] = useState('')
   const [editingIndex, setEditingIndex] = useState(-1)
   const [editValue, setEditValue] = useState('')
-  const [clientId, setClientId] = useState(() => localStorage.getItem('google-drive-client-id') || '')
+  const [clientId, setClientId] = useState(
+    () => localStorage.getItem('google-drive-client-id')
+      || import.meta.env.VITE_GOOGLE_CLIENT_ID
+      || '',
+  )
   const [seedLoaded, setSeedLoaded] = useState(false)
   const [expandedDay, setExpandedDay] = useState(null)
+
+  useEffect(() => {
+    if (clientId) localStorage.setItem('google-drive-client-id', clientId)
+  }, [clientId])
 
   function handleAdd(e) {
     e.preventDefault()
