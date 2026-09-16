@@ -32,7 +32,7 @@ describe('LogWorkout - Day Selector', () => {
   it('renders heading with route day when provided', () => {
     renderLogWorkout()
     const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toHaveTextContent('Log Workout - Monday')
+    expect(heading).toHaveTextContent('Log Workout - ' + new Date().toLocaleString('en-US', { weekday: 'long' }))
   })
 
   it('day selector dropdown renders all 7 days', () => {
