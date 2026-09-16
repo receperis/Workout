@@ -36,4 +36,20 @@ describe('ExerciseCard', () => {
     const repsLabels = screen.getAllByText('reps')
     expect(repsLabels).toHaveLength(PYRAMID_REPS.length)
   })
+
+  it('renders weight input per rep row with kg suffix', () => {
+    render(<ExerciseCard />)
+
+    PYRAMID_REPS.forEach((reps) => {
+      const input = screen.getByRole('spinbutton', { name: reps })
+      expect(input).toBeInTheDocument()
+    })
+  })
+
+  it('each weight input has kg suffix', () => {
+    render(<ExerciseCard />)
+
+    const kgLabels = screen.getAllByText('kg')
+    expect(kgLabels).toHaveLength(PYRAMID_REPS.length)
+  })
 })
